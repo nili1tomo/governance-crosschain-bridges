@@ -22,6 +22,7 @@ import {
   eEthereumNetwork,
   eNetwork,
   eOptimismNetwork,
+  eMantleNetwork,
   ePolygonNetwork,
   eXDaiNetwork,
 } from './helpers/types';
@@ -135,7 +136,12 @@ const hardhatConfig: HardhatUserConfig = {
         arbitrum: eArbitrumNetwork.arbitrumTestnet,
       },
     },
-    goerli: getCommonNetworkConfig(eEthereumNetwork.goerli, 5),
+    goerli: {
+      ...getCommonNetworkConfig(eEthereumNetwork.goerli, 5),
+      companionNetworks: {
+        mantle: eMantleNetwork.testnet,
+      },
+    },
     main: {
       ...getCommonNetworkConfig(eEthereumNetwork.main, 1),
       companionNetworks: {
@@ -156,9 +162,16 @@ const hardhatConfig: HardhatUserConfig = {
     },
     [eOptimismNetwork.main]: getCommonNetworkConfig(eOptimismNetwork.main, 10),
     [eOptimismNetwork.testnet]: {
-      ...getCommonNetworkConfig(eOptimismNetwork.testnet, 69),
+      ...getCommonNetworkConfig(eOptimismNetwork.testnet, 420),
       companionNetworks: {
-        l1: 'kovan',
+        l1: 'goerli',
+      },
+    },
+    [eMantleNetwork.main]: getCommonNetworkConfig(eMantleNetwork.main, 5000),
+    [eMantleNetwork.testnet]: {
+      ...getCommonNetworkConfig(eMantleNetwork.testnet, 5001),
+      companionNetworks: {
+        l1: 'goerli',
       },
     },
     hardhat: {
