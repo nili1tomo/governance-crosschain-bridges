@@ -12,6 +12,13 @@ import {
   deployOptimismBridgeExecutor,
   deployOvmMessengers,
 } from '../../helpers/optimism-contract-getters';
+
+import {
+  deployMantleBridgeExecutor,
+  deployBvmMessengers,
+} from '../../helpers/mantle-contract-getters';
+
+
 import {
   getAaveGovContract,
   deployExecutorContract,
@@ -32,8 +39,11 @@ import {
   PolygonBridgeExecutor,
   ArbitrumBridgeExecutor,
   OptimismBridgeExecutor,
+  MantleBridgeExecutor,
   MockOvmL1CrossDomainMessenger,
   MockOvmL2CrossDomainMessenger,
+  MockBvmL1CrossDomainMessenger,
+  MockBvmL2CrossDomainMessenger,
   MockInbox__factory,
   MockInbox,
 } from '../../typechain';
@@ -84,6 +94,9 @@ export interface TestEnv {
   optimismL2Messenger: MockOvmL2CrossDomainMessenger;
   arbitrumBridgeExecutor: ArbitrumBridgeExecutor;
   optimismBridgeExecutor: OptimismBridgeExecutor;
+  mantleL1Messenger: MockBvmL1CrossDomainMessenger;
+  mantleL2Messenger: MockBvmL2CrossDomainMessenger;
+  mantleBridgeExecutor: MantleBridgeExecutor;
   proposalActions: ProposalActions[];
 }
 
@@ -104,6 +117,10 @@ const testEnv: TestEnv = {
   optimismL2Messenger: {} as MockOvmL2CrossDomainMessenger,
   arbitrumBridgeExecutor: {} as ArbitrumBridgeExecutor,
   optimismBridgeExecutor: {} as OptimismBridgeExecutor,
+
+  mantleL1Messenger: {} as MockBvmL1CrossDomainMessenger,
+  mantleL2Messenger: {} as MockBvmL2CrossDomainMessenger,
+  mantleBridgeExecutor: {} as MantleBridgeExecutor,
   proposalActions: {} as ProposalActions[],
 } as TestEnv;
 
@@ -206,12 +223,34 @@ const deployOptimismBridgeContracts = async (): Promise<void> => {
   );
 };
 
+const deployMantleBridgeContracts = async (): Promise<void> => {
+  const { aaveGovOwner } = testEnv;
+
+  // deploy mantle messengers
+  const messengers = await deployBvmMessengers(aaveGovOwner.signer);
+  testEnv.mantleL1Messenger = messengers[0];
+  testEnv.mantleL2Messenger = messengers[1];
+
+  // deploy arbitrum executor
+  testEnv.mantleBridgeExecutor = await deployMantleBridgeExecutor(
+    testEnv.mantleL2Messenger.address,
+    testEnv.shortExecutor.address,
+    BigNumber.from(60),
+    BigNumber.from(1000),
+    BigNumber.from(15),
+    BigNumber.from(500),
+    aaveGovOwner.address,
+    aaveGovOwner.signer
+  );
+};
+
 export const setupTestEnvironment = async (): Promise<void> => {
   await setUpSigners();
   await createGovernanceContracts();
   await deployPolygonBridgeContracts();
   await deployArbitrumBridgeContracts();
   await deployOptimismBridgeContracts();
+  await deployMantleBridgeContracts();
 };
 
 export async function makeSuite(
