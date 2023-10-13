@@ -679,3 +679,35 @@ export const createOptimismBridgeTest = async (
 
   return proposalActions;
 };
+
+export const createMantleBridgeTest = async (
+  dummyAddress: tEthereumAddress,
+  testEnv: TestEnv
+): Promise<ProposalActions> => {
+  const { ethers } = DRE;
+  const { mantleBridgeExecutor } = testEnv;
+  const proposalActions = new ProposalActions();
+
+  // push the first transaction fields into action arrays
+  const encodedAddress = ethers.utils.defaultAbiCoder.encode(['uint256'], [dummyAddress]);
+  proposalActions.targets.push(mantleBridgeExecutor.address);
+  proposalActions.values.push(BigNumber.from(0));
+  proposalActions.signatures.push('updateEthereumGovernanceExecutor(address)');
+  proposalActions.calldatas.push(encodedAddress);
+  proposalActions.withDelegatecalls.push(false);
+
+  const encodedQueue = mantleBridgeExecutor.interface.encodeFunctionData('queue', [
+    proposalActions.targets,
+    proposalActions.values,
+    proposalActions.signatures,
+    proposalActions.calldatas,
+    proposalActions.withDelegatecalls,
+  ]);
+
+  proposalActions.encodedRootCalldata = ethers.utils.defaultAbiCoder.encode(
+    ['address', 'bytes', 'uint32'],
+    [mantleBridgeExecutor.address, encodedQueue, 1500000]
+  );
+
+  return proposalActions;
+};

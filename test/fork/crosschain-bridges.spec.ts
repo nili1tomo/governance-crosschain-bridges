@@ -32,6 +32,7 @@ import {
   createBridgeTest16,
   createArbitrumBridgeTest,
   createOptimismBridgeTest,
+  createMantleBridgeTest,
 } from '../helpers/actions-sets-helpers';
 import {
   expectProposalState,
@@ -222,6 +223,14 @@ makeSuite('Crosschain bridge tests', setupTestEnvironment, (testEnv: TestEnv) =>
     const proposal18Actions = await createOptimismBridgeTest(aaveWhale2.address, testEnv);
     testEnv.proposalActions.push(proposal18Actions);
 
+      /**
+     * Mantle -- Create Proposal Actions 19
+     * Update Ethereum Governance Executor in the Mantle Governance contract
+     */
+        const proposal19Actions = await createMantleBridgeTest(aaveWhale2.address, testEnv);
+        testEnv.proposalActions.push(proposal19Actions);
+    
+
     // Create Polygon Proposals
     for (let i = 0; i < 16; i++) {
       proposals[i] = await createProposal(
@@ -265,6 +274,21 @@ makeSuite('Crosschain bridge tests', setupTestEnvironment, (testEnv: TestEnv) =>
       '0xf7a1f565fcd7684fba6fea5d77c5e699653e21cb6ae25fbf8c5dbc8d694c7949'
     );
     await expectProposalState(aaveGovContract, proposals[17].id, proposalStates.PENDING);
+
+    // Create Mantle proposal
+    proposals[18] = await createProposal(
+      aaveGovContract,
+      aaveWhale1.signer,
+      shortExecutor.address,
+      [testEnv.mantleL1Messenger.address],
+      [BigNumber.from(0)],
+      ['sendMessage(address,bytes,uint32)'],
+      [testEnv.proposalActions[18].encodedRootCalldata],
+      [false],
+      '0xf7a1f565fcd7684fba6fea5d77c5e699653e21cb6ae25fbf8c5dbc8d694c7949'
+    );
+    await expectProposalState(aaveGovContract, proposals[18].id, proposalStates.PENDING);
+
 
     // Vote on Proposals
     for (let i = 0; i < 18; i++) {
@@ -469,6 +493,24 @@ makeSuite('Crosschain bridge tests', setupTestEnvironment, (testEnv: TestEnv) =>
       const { optimismBridgeExecutor, aaveWhale1 } = testEnv;
       await expect(
         optimismBridgeExecutor
+          .connect(aaveWhale1.signer)
+          .updateEthereumGovernanceExecutor(aaveWhale1.address)
+      ).to.be.revertedWith(ExecutorErrors.OnlyCallableByThis);
+    });
+  });
+  describe('MantleBridgeExecutor Authorization', async function () {
+    it('Unauthorized Transaction - Call Bridge Receiver From Non-EthereumGovernanceExecutor Address', async () => {
+      const { mantleBridgeExecutor } = testEnv;
+      const { targets, values, signatures, calldatas, withDelegatecalls } =
+        testEnv.proposalActions[0];
+      await expect(
+        mantleBridgeExecutor.queue(targets, values, signatures, calldatas, withDelegatecalls)
+      ).to.be.revertedWith(ExecutorErrors.UnauthorizedEthereumExecutor);
+    });
+    it('Unauthorized Update Ethereum Governance Executor - revert', async () => {
+      const { mantleBridgeExecutor, aaveWhale1 } = testEnv;
+      await expect(
+        mantleBridgeExecutor
           .connect(aaveWhale1.signer)
           .updateEthereumGovernanceExecutor(aaveWhale1.address)
       ).to.be.revertedWith(ExecutorErrors.OnlyCallableByThis);
@@ -828,6 +870,39 @@ makeSuite('Crosschain bridge tests', setupTestEnvironment, (testEnv: TestEnv) =>
         .to.emit(aaveGovContract, 'ProposalExecuted');
     });
   });
+  describe('Queue - MantleBridgeExecutor through Ethereum Aave Governance', async function () {
+    it('Execute Proposal 18 - successfully queue Mantle transaction - duplicate polygon actions', async () => {
+      const { ethers } = DRE;
+      const { aaveGovContract, shortExecutor, mantleBridgeExecutor, mantleL2Messenger } =
+        testEnv;
+
+      const { targets, values, signatures, calldatas, withDelegatecalls } =
+        testEnv.proposalActions[17];
+
+      // Mock sender
+      await mantleL2Messenger.setSender(shortExecutor.address);
+
+      // expectedExecutionTime
+      const blockNumber = await ethers.provider.getBlockNumber();
+      const block = await await ethers.provider.getBlock(blockNumber);
+      const blocktime = block.timestamp;
+      const expectedExecutionTime = blocktime + 61;
+
+      await expect(aaveGovContract.execute(proposals[17].id, overrides))
+        .to.emit(mantleBridgeExecutor, 'ActionsSetQueued')
+        .withArgs(
+          0,
+          targets,
+          values,
+          signatures,
+          calldatas,
+          withDelegatecalls,
+          expectedExecutionTime
+        )
+        .to.emit(shortExecutor, 'ExecutedAction')
+        .to.emit(aaveGovContract, 'ProposalExecuted');
+    });
+  });
   describe('Confirm ActionSet State - Bridge Executor', async function () {
     it('Confirm ActionsSet 0 State', async () => {
       const { polygonBridgeExecutor } = testEnv;
@@ -1001,6 +1076,29 @@ makeSuite('Crosschain bridge tests', setupTestEnvironment, (testEnv: TestEnv) =>
         );
     });
   });
+  describe('Execute Action Sets - Aave Mantle Governance', async function () {
+    it('Execute Action Set 0 - update ethereum governance executor', async () => {
+      const {
+        mantleBridgeExecutor,
+        mantleL2Messenger,
+        shortExecutor,
+        aaveWhale2,
+        aaveGovOwner,
+      } = testEnv;
+
+      // Mock sender
+      await mantleL2Messenger.setSender(shortExecutor.address);
+
+      await expect(mantleBridgeExecutor.execute(0))
+        .to.emit(mantleBridgeExecutor, 'ActionsSetExecuted')
+        .withArgs(0, aaveGovOwner.address, ['0x'])
+        .to.emit(mantleBridgeExecutor, 'EthereumGovernanceExecutorUpdate')
+        .withArgs(
+          DRE.ethers.utils.getAddress(shortExecutor.address),
+          DRE.ethers.utils.getAddress(aaveWhale2.address)
+        );
+    });
+  });
   describe('PolygonBridgeExecutor Getters - FxRootSender, FxChild', async function () {
     it('Get FxRootSender', async () => {
       const { polygonBridgeExecutor, aaveWhale2 } = testEnv;
@@ -1027,6 +1125,14 @@ makeSuite('Crosschain bridge tests', setupTestEnvironment, (testEnv: TestEnv) =>
     it('Get EthereumGovernanceExecutor', async () => {
       const { optimismBridgeExecutor, aaveWhale2 } = testEnv;
       expect(await optimismBridgeExecutor.getEthereumGovernanceExecutor()).to.be.equal(
+        DRE.ethers.utils.getAddress(aaveWhale2.address)
+      );
+    });
+  });
+  describe('MantleBridgeExecutor Getters - EthereumGovernanceExecutor', async function () {
+    it('Get EthereumGovernanceExecutor', async () => {
+      const { mantleBridgeExecutor, aaveWhale2 } = testEnv;
+      expect(await mantleBridgeExecutor.getEthereumGovernanceExecutor()).to.be.equal(
         DRE.ethers.utils.getAddress(aaveWhale2.address)
       );
     });
