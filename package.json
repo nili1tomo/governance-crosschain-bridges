@@ -35,8 +35,8 @@
     "deploy:gov-bridge:arbitrum-testnet": "npm run hardhat:arbitrum-testnet -- --tags 'ArbitrumGov,Greeter'",
     "deploy:optimism:testnet": "hardhat --network optimism-testnet deploy --tags 'OptimisticGov'",
     "deploy:optimism:mainnet": "hardhat --network optimism deploy --tags 'OptimisticGov'",
-    "deploy:mantle:testnet": "hardhat --network mantle-testnet deploy --tags 'MantleGov'",
-    "deploy:mantle:mainnet": "hardhat --network mantle deploy --tags 'MantleGov'",
+    "deploy:mantle:testnet": "hardhat --network mantle-testnet deploy --tags 'OptimisticGov'",
+    "deploy:mantle:mainnet": "hardhat --network mantle deploy --tags 'OptimisticGov'",
     "deploy:arbitrum:testnet": "hardhat --network arbitrum-testnet deploy --tags 'ArbitrumGov'",
     "deploy:arbitrum:mainnet": "hardhat --network arbitrum deploy --tags 'ArbitrumGov'"
   },
